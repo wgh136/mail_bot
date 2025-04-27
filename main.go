@@ -1,0 +1,57 @@
+package main
+
+import (
+	tele "gopkg.in/telebot.v4"
+	"log"
+	"mail_bot/data"
+	"mail_bot/mail"
+	"mail_bot/server"
+	"os"
+	"time"
+)
+
+func main() {
+	pref := tele.Settings{
+		Token:  os.Getenv("TOKEN"),
+		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
+	}
+
+	bot, err := tele.NewBot(pref)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	server.SetBot(bot)
+
+	bot.Use(server.MessageFilter)
+
+	bot.Use(server.RecordUserMiddleware)
+
+	bot.Handle("/add_email", server.HandleAddEmail)
+
+	bot.Handle("/cancel", server.CancelAddEmail)
+
+	bot.Handle("/delete_email", server.HandleDeleteEmail)
+
+	bot.Handle(&tele.InlineButton{
+		Unique: server.InlineButtonDeleteEmail,
+	}, server.HandleDeleteEmailButton)
+
+	bot.Handle(tele.OnText, server.HandlePlainText)
+
+	bot.Start()
+}
+
+func init() {
+	configs := data.GetAllConfigs()
+	for _, c := range configs {
+		mailConfig := c.Config
+		conn := mail.NewImapConnection(c.UserId, c.Email, mailConfig.(*data.ImapConfig))
+		conn.AddListener(server.HandleNewEmail)
+		err := mail.AddConnection(conn)
+		if err != nil {
+			log.Println("Failed to add connection:", err)
+		}
+	}
+}
