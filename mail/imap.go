@@ -37,19 +37,6 @@ func (i *ImapConnection) HandleNewMails(data *imapclient.UnilateralDataMailbox) 
 		defer func() {
 			i.handlingNewMessages = false
 		}()
-		err := i.idleCommand.Close()
-		if err != nil {
-			log.Println("failed to close idle command:", err)
-			i.ErrorAndClose()
-			return
-		}
-		err = i.idleCommand.Wait()
-		if err != nil {
-			log.Println("failed to close idle command:", err)
-			i.ErrorAndClose()
-			return
-		}
-		i.idleCommand = nil
 
 		maxSeqNum, err := getMaxSeqNum(i.client)
 		if err != nil {
@@ -73,39 +60,7 @@ func (i *ImapConnection) HandleNewMails(data *imapclient.UnilateralDataMailbox) 
 				listener(i.userId, message.From, message.To, message.Subject, message.Content)
 			}
 		}
-
-		i.idleCommand, err = i.client.Idle()
-		if err != nil {
-			log.Println("failed to start idle command:", err)
-			i.ErrorAndClose()
-		}
-		go func() {
-			err := i.idleCommand.Wait()
-			if !i.handlingNewMessages {
-				log.Println("idle command closed by server:", err)
-				i.idleCommand = nil
-				i.ErrorAndClose()
-			}
-		}()
 	}
-}
-
-func (i *ImapConnection) StartIdle() {
-	var err error
-	i.idleCommand, err = i.client.Idle()
-	if err != nil {
-		i.idleCommand = nil
-		i.ErrorAndClose()
-		log.Println("failed to start idle command: %w", err)
-	}
-	go func() {
-		_ = i.idleCommand.Wait()
-		if !i.handlingNewMessages {
-			// Idle command closed by server
-			_ = i.client.Close()
-			_ = i.Connect()
-		}
-	}()
 }
 
 func (i *ImapConnection) StartLoop() {
@@ -180,17 +135,8 @@ func (i *ImapConnection) Connect() error {
 		i.status = StatusError
 		return fmt.Errorf("failed to select mailbox: %w", err)
 	}
-	idle, err := supportIdle(i.client)
-	if err != nil {
-		i.status = StatusError
-		return fmt.Errorf("failed to check IDLE support: %w", err)
-	}
 	i.status = StatusConnected
-	if idle {
-		i.StartIdle()
-	} else {
-		i.StartLoop()
-	}
+	i.StartLoop()
 	return nil
 }
 
@@ -230,19 +176,6 @@ func NewImapConnection(userId int64, email string, config *data.ImapConfig) *Ima
 
 func (i *ImapConnection) AddListener(listener Listener) {
 	i.listeners = append(i.listeners, listener)
-}
-
-func supportIdle(c *imapclient.Client) (bool, error) {
-	// Check if the server supports IDLE
-	if c == nil {
-		return false, nil
-	}
-	command := c.Capability()
-	caps, err := command.Wait()
-	if err != nil {
-		return false, err
-	}
-	return caps.Has(imap.CapIdle), nil
 }
 
 type Message struct {
@@ -319,11 +252,6 @@ func FetchMessages(c *imapclient.Client, seqNums []int) ([]Message, error) {
 				if len(d) > 0 {
 					content = string(d)
 				}
-			}
-
-			if len([]rune(content)) > 1000 {
-				content = string([]rune(content)[:1000])
-				break
 			}
 		}
 		messages = append(messages, Message{

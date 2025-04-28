@@ -18,6 +18,9 @@ func HandleNewEmail(uid int64, from string, to string, subject string, body stri
 		log.Println("Error getting chat ID for user ", uid, ":", err)
 	}
 	body = html2text.HTML2Text(body)
+	if len([]rune(body)) > 2000 {
+		body = string([]rune(body)[:2000])
+	}
 	_, err = Bot.Send(tele.ChatID(chatID), "From: "+from+"\nTo: "+to+"\nSubject: "+subject+"\n\n"+body)
 	if err != nil {
 		log.Println("Error sending message to user ", uid, ":", err)
