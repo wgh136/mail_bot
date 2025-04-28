@@ -10,6 +10,12 @@ import (
 	"time"
 )
 
+const helloMessage = `Welcome to the Mail Bot! Here is what you can do:
+/add_email - Add a new email address.
+/delete_email - Delete an existing email address.
+/list_email - List all your email addresses.
+/cancel - Cancel the current operation.`
+
 func main() {
 	pref := tele.Settings{
 		Token:  os.Getenv("TOKEN"),
@@ -28,11 +34,17 @@ func main() {
 
 	bot.Use(server.RecordUserMiddleware)
 
+	bot.Handle("/start", func(c tele.Context) error {
+		return c.Send(helloMessage)
+	})
+
 	bot.Handle("/add_email", server.HandleAddEmail)
 
 	bot.Handle("/cancel", server.CancelAddEmail)
 
 	bot.Handle("/delete_email", server.HandleDeleteEmail)
+
+	bot.Handle("/list_email", server.HandleListEmails)
 
 	bot.Handle(&tele.InlineButton{
 		Unique: server.InlineButtonDeleteEmail,
