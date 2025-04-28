@@ -5,6 +5,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"os"
+	"runtime"
 )
 
 var (
@@ -12,11 +13,17 @@ var (
 )
 
 func init() {
-	userDir, err := os.UserHomeDir()
-	if err != nil {
-		panic(err)
+	baseDir := ""
+	var err error
+	if runtime.GOOS == "linux" {
+		baseDir = "/var/lib"
+	} else {
+		baseDir, err = os.UserHomeDir()
+		if err != nil {
+			panic(err)
+		}
 	}
-	dataDir := userDir + "/.mail_bot"
+	dataDir := baseDir + "/.mail_bot"
 	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
 		if err := os.Mkdir(dataDir, 0755); err != nil {
 			panic(err)

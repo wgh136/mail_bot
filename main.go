@@ -17,8 +17,13 @@ const helloMessage = `Welcome to the Mail Bot! Here is what you can do:
 /cancel - Cancel the current operation.`
 
 func main() {
+	token := os.Getenv("TOKEN")
+	if token == "" {
+		panic("Please set the TOKEN environment variable.")
+	}
+
 	pref := tele.Settings{
-		Token:  os.Getenv("TOKEN"),
+		Token:  token,
 		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
 	}
 
